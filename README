@@ -1,0 +1,117 @@
+Задача: кластер Postgres
+
+- Postgresql (установить, настроить, создать схему с табличкой.);
+
+- Желательно:
+  + виртуальный ип (единый адрес обращения, программный балансировщик/фейл-овер, предпочтительно, но не обязательно, pacemaker/corosync);
+  + failover, доступность при отключении одной из нод;
+  (иначе считаем, что у нас внешний балансировщих с пробником по порту БД);
+- синхронизация нод без потери данных в случае потери ноды;
+- отсутствие конфликтов при возвращении ноды в строй - избежать проблемы split-brain;
+- предусмотреть установку из репозиториев, или локальных файлов, заранее скачаных, или смешанный вариант;
+- разделение переменных и логики (легкий переход с окружения на окружение);
+- единая точка входа для полного или частичного развертывания;
+- желательно обойтись встроенными модулями ансибла.
+
+Версия ансибла, предпочтительно, 2.7.x + python2
+
+Решение:
+
+ISO c https://edelivery.oracle.com/osdc/faces/SoftwareDelivery
+
+Подготовка OEL 7.6 с Extra Packages for Enterprise Linux и ansible:
+
+По мотивам http://nokitel.im/index.php/2016/11/09/how-to-install-ansible-on-red-hat-enterprise-linux-7-rhel-7/
+
+[root@oel7 ~]# yum update && yum upgrade
+yum install net-tools
+yum install wget
+wget https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+rpm -ivh epel-release-latest-7.noarch.rpm
+yum install epel-release
+yum install python
+yum install python-pip
+pip install --upgrade pip
+pip install markupsafe
+pip install xmltodict
+pip install pywinrm
+yum install ansible
+
+Результат:
+[root@oel7 ~]# ansible --version
+ansible 2.8.1
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = [u'/root/.ansible/plugins/modules', u'/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python2.7/site-packages/ansible
+  executable location = /bin/ansible
+  python version = 2.7.5 (default, Jun 20 2019, 13:30:36) [GCC 4.8.5 20150623 (Red Hat 4.8.5-36.0.1)]
+[root@oel7 ~]#
+[root@oel7 ~]# cat /etc/redhat-release
+Red Hat Enterprise Linux Server release 7.6 (Maipo)
+[root@oel7 ~]# uname -a
+Linux oel7 4.14.35-1902.3.1.el7uek.x86_64 #2 SMP Mon Jun 24 21:25:29 PDT 2019 x86_64 x86_64 x86_64 GNU/Linux
+
+
+Подготовка hosts и доступ к клиентам на примере srv1 (склонированный с готового образа на предыдущем шаге)
+/etc/hosts:
+192.168.56.100 pgsql-vip
+192.168.56.11 srv1
+192.168.56.12 srv2
+192.168.56.13 srv3
+192.168.57.11 srv1-alt
+192.168.57.12 srv2-alt
+192.168.57.13 srv3-alt
+#ssh-keygen
+ssh-copy-id root@srv1
+
+
+Установка кластера Pacemaker & Corosync по мотивам https://docs.oracle.com/cd/E52668_01/E54669/html/ol7-pacemaker.html
+
+ansible-playbook -i hosts -l srv1 1.yml
+ansible-playbook -i hosts -l srv1 2.yml
+
+
+
+Настройка на одном из трех хостов
+pcs cluster auth srv1 srv2 srv3 srv1-alt srv2-alt srv3-alt -u hacluster -p CHANGEME --force
+
+pcs cluster setup --force --name cluster_pgsql srv1,srv1-alt srv2,srv2-alt srv3,srv3-alt
+
+ pcs cluster start --all
+srv1: Starting Cluster (corosync)...
+srv2: Starting Cluster (corosync)...
+srv3: Starting Cluster (corosync)...
+srv3: Starting Cluster (pacemaker)...
+srv1: Starting Cluster (pacemaker)...
+srv2: Starting Cluster (pacemaker)...
+[root@oel7-cl1 ~]# pcs cluster status
+Cluster Status:
+ Stack: unknown
+ Current DC: NONE
+ Last updated: Fri Jul 12 16:21:58 2019
+ Last change: Fri Jul 12 16:21:56 2019 by hacluster via crmd on srv3
+ 3 nodes configured
+ 0 resources configured
+
+PCSD Status:
+  srv1: Online
+  srv3: Online
+  srv2: Online
+
+[root@oel7-cl1 ~]# crm_mon -n1D
+
+Node srv1: online
+Node srv2: online
+Node srv3: online
+
+
+В процессе настройка кластера postgresql
+Сейчас изучаю следующие варианты
+1) https://clusterlabs.github.io/PAF/administration.html
+в процессе
+2) https://habr.com/ru/post/280872/ 
+этот вариант мой стенд не потянет...
+
+И кстати есть еще интересный вариант с pgpool-II
+https://habr.com/ru/post/188096/
+

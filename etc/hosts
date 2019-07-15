@@ -1,0 +1,10 @@
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+192.168.56.11 srv1
+192.168.56.12 srv2
+192.168.56.13 srv3
+192.168.57.11 srv1-alt
+192.168.57.12 srv2-alt
+192.168.57.13 srv3-alt
+192.168.56.14 srv4

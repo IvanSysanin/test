@@ -1,0 +1,17 @@
+- hosts: srv
+  gather_facts: no
+  tasks:
+  - name: copy hosts
+    copy: src=etc/hosts dest=/etc/hosts
+  - name: passwd for hacluster and enables TCP ports 2224 3121 21064 and UDP ports 5405 5404
+    shell: echo CHANGEME | passwd --stdin hacluster;
+     firewall-cmd --permanent --add-service=high-availability;
+     firewall-cmd --add-service=high-availability;
+     firewall-cmd --permanent --add-service=postgresql;
+     firewall-cmd --add-service=postgresql
+  - name: enable service pcsd and ensure it is not masked
+    systemd:
+     name: pcsd
+     state: started
+     enabled: yes
+     masked: no

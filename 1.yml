@@ -1,0 +1,9 @@
+- hosts: srv
+  gather_facts: no
+  tasks:
+  - name: Install packages pcs pacemaker corosync
+    yum: name={{ item }} state=latest
+    with_items:
+    - pcs
+    - pacemaker
+    - corosync
